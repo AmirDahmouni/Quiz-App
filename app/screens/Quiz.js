@@ -1,12 +1,33 @@
-import React, { useState } from 'react'
+import React, { useState,useEffect,useContext } from 'react'
 import { View, Text, SafeAreaView, StatusBar, Image, TouchableOpacity, Modal, Animated } from 'react-native'
 import { COLORS, SIZES } from '../constants';
-import data from '../data/QuizData';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import GlobalContext from '../GlobalContext';
+import axios from "axios"
+const Quiz = ({navigation}) => {
 
-const Quiz = () => {
+    const chooseRandom = (arr, num = 1) => {
+        const res = [];
+        for(let i = 0; i < num; ){
+           const random = Math.floor(Math.random() * arr.length);
+           if(res.indexOf(arr[random]) !== -1){
+              continue;
+           };
+           res.push(arr[random]);
+           i++;
+        };
+        return res;
+     };
 
-    const allQuestions = data;
+    const [allQuestions, setallQuestions] = useState([]);
+    useEffect(()=>{
+        const result=axios.get("http://localhost:3900/api/questions/").then(({data}) => {
+            
+            setallQuestions(chooseRandom(data,5))
+        }).catch(err=>console.log(err))
+    },[])
+
+    const context = React.useContext(GlobalContext)
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
     const [currentOptionSelected, setCurrentOptionSelected] = useState(null);
     const [correctOption, setCorrectOption] = useState(null);
@@ -22,7 +43,7 @@ const Quiz = () => {
         setIsOptionsDisabled(true);
         if(selectedOption==correct_option){
             // Set Score
-            setScore(score+1)
+            setScore(score+allQuestions[currentQuestionIndex]['correct_score'])
         }
         // Show Next Button
         setShowNextButton(true)
@@ -32,6 +53,19 @@ const Quiz = () => {
             // Last Question
             // Show Score Modal
             setShowScoreModal(true)
+            if(score>context.user.score)
+            {
+                axios.put(`http://192.168.1.141:3900/api/users/${context.user._id}`,{score:score}).
+                then((response)=>
+                {
+                  if(response.status==200) 
+                  {
+                      
+                    context.setUser({...context.user,score:score})
+                  }
+                }).
+                catch(err=>console.log(err.message))
+            }
         }else{
             setCurrentQuestionIndex(currentQuestionIndex+1);
             setCurrentOptionSelected(null);
@@ -61,8 +95,6 @@ const Quiz = () => {
             useNativeDriver: false
         }).start();
     }
-
-
 
     const renderQuestion = () => {
         return (
@@ -97,16 +129,8 @@ const Quiz = () => {
                         key={option}
                         style={{
                             borderWidth: 3, 
-                            borderColor: option==correctOption 
-                            ? COLORS.success
-                            : option==currentOptionSelected 
-                            ? COLORS.error 
-                            : COLORS.secondary+'40',
-                            backgroundColor: option==correctOption 
-                            ? COLORS.success +'20'
-                            : option==currentOptionSelected 
-                            ? COLORS.error +'20'
-                            : COLORS.secondary+'20',
+                            borderColor: option==correctOption ? COLORS.success: option==currentOptionSelected ? COLORS.error : COLORS.secondary+'40',
+                            backgroundColor: option==correctOption ? COLORS.success +'20': option==currentOptionSelected ? COLORS.error +'20': COLORS.secondary+'20',
                             height: 60, borderRadius: 20,
                             flexDirection: 'row',
                             alignItems: 'center', justifyContent: 'space-between',
@@ -195,10 +219,17 @@ const Quiz = () => {
     }
 
 
-    return (
-       <SafeAreaView style={{
-           flex: 1
-       }}>
+    const logOut=(navigation)=>{
+        
+        navigation.navigate("Login") 
+        context.setUser(null)
+    }
+
+
+        if(context.user)
+         return (        
+           <SafeAreaView style={{flex: 1}}>
+           
            <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
            <View style={{
                flex: 1,
@@ -207,7 +238,8 @@ const Quiz = () => {
                backgroundColor: COLORS.background,
                position:'relative'
            }}>
-
+               <Text style={{fontSize: 40, fontWeight: 'bold',textAlign:"center",color:COLORS.secondary}}>Your Best Score </Text>
+               <Text style={{fontSize: 40, fontWeight: 'bold',textAlign:"center", color:COLORS.error}}>{ context.user.score}</Text>
                {/* ProgressBar */}
                { renderProgressBar() }
 
@@ -239,7 +271,7 @@ const Quiz = () => {
                            padding: 20,
                            alignItems: 'center'
                        }}>
-                           <Text style={{fontSize: 30, fontWeight: 'bold'}}>{ score> (allQuestions.length/2) ? 'Congratulations!' : 'Oops!' }</Text>
+                           <Text style={{fontSize: 40, fontWeight: 'bold',textAlign:"center"}}>{ score> (allQuestions.length/2) ? 'Congratulations! your score' : 'Oops!' }</Text>
 
                            <View style={{
                                flexDirection: 'row',
@@ -247,24 +279,19 @@ const Quiz = () => {
                                alignItems: 'center',
                                marginVertical: 20
                            }}>
-                               <Text style={{
-                                   fontSize: 30,
-                                   color: score> (allQuestions.length/2) ? COLORS.success : COLORS.error
-                               }}>{score}</Text>
-                                <Text style={{
-                                    fontSize: 20, color: COLORS.black
-                                }}>/ { allQuestions.length }</Text>
+                               <Text style={{fontSize: 30,color: COLORS.secondary }}>{score}</Text>
                            </View>
                            {/* Retry Quiz button */}
                            <TouchableOpacity
                            onPress={restartQuiz}
-                           style={{
-                               backgroundColor: COLORS.accent,
-                               padding: 20, width: '100%', borderRadius: 20
-                           }}>
-                               <Text style={{
-                                   textAlign: 'center', color: COLORS.white, fontSize: 20
-                               }}>Retry Quiz</Text>
+                           style={{backgroundColor: COLORS.accent,padding: 20, width: '100%', borderRadius: 20}}>
+                               <Text style={{textAlign: 'center', color: COLORS.white, fontSize: 20}}>Retry Quiz</Text>
+                           </TouchableOpacity>
+
+                           <TouchableOpacity
+                           onPress={()=>logOut(navigation)}
+                           style={{backgroundColor: COLORS.accent,padding: 20, width: '100%', borderRadius: 20,marginTop:20}}>
+                               <Text style={{textAlign: 'center', color: COLORS.white, fontSize: 20}}>Logout</Text>
                            </TouchableOpacity>
 
                        </View>
@@ -272,7 +299,7 @@ const Quiz = () => {
                    </View>
                </Modal>
 
-               {/* Background Image */}
+               
                <Image
                 source={require('../assets/images/DottedBG.png')}
                 style={{
@@ -289,8 +316,10 @@ const Quiz = () => {
                 />
 
            </View>
-       </SafeAreaView>
-    )
+           </SafeAreaView>)
+        else return null;
+      
+    
 }
 
 export default Quiz
